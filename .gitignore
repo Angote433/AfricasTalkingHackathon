@@ -1,0 +1,7 @@
+#Filesto ignore
+
+.claude/
+claude.md
+backend/.env
+backend/uploads/
+__pycache__/

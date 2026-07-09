@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root {
+  --bg: #f3f4f6;
+  --text: #111827;
+  --muted: #6b7280;
+  --card-bg: #ffffff;
+  --accent: #2563eb;
+  --toggle-bg: rgba(255,255,255,0.8);
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: #888;
+}
+
+.dark {
+  --bg: #0b1220;
+  --text: #e6eef8;
+  --muted: #9aa6b2;
+  --card-bg: #0f1724;
+  --accent: #60a5fa;
+  --toggle-bg: rgba(17,24,39,0.8);
+  --scrollbar-track: #071028;
+  --scrollbar-thumb: #334155;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Custom Animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Theme toggle button (top-right) */
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 60;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--toggle-bg);
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.15);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,0,0,0.06);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.theme-toggle:focus {
+  outline: 2px solid var(--accent);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Dark-mode overrides for common Tailwind utility classes used in components */
+.dark .bg-white {
+  background-color: var(--card-bg) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: rgba(255,255,255,0.02) !important;
+}
+
+.dark .bg-blue-50,
+.dark .from-blue-50,
+.dark .to-indigo-100,
+.dark .bg-gradient-to-br {
+  background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important;
+}
+
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: var(--text) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: var(--muted) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+.dark .shadow-lg,
+.dark .shadow-2xl,
+.dark .shadow-md,
+.dark .shadow {
+  box-shadow: 0 6px 20px rgba(2,6,23,0.6) !important;
+}
+
+/* UI Enhancement: hero, card, and button styles */
+.hero {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  line-height: 1.05;
+}
+
+.card {
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.08);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+.dark .card {
+  box-shadow: 0 8px 24px rgba(2,6,23,0.45);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: linear-gradient(90deg, var(--accent), #1e40af);
+  color: white;
+  box-shadow: 0 8px 20px rgba(37,99,235,0.18);
+  border: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.06);
+  color: var(--text);
+}
+
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.8));
+  box-shadow: 0 8px 20px rgba(2,6,23,0.06);
+  margin: 0 auto 0.75rem auto;
+  font-size: 1.6rem;
+}
+
+.dark .feature-icon {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  box-shadow: 0 8px 20px rgba(2,6,23,0.5);
+}
+
+.upload-dropzone {
+  border-radius: 0.75rem;
+}
+
+/* Slight lift on hover for cards */
+.card:hover {
+  transform: translateY(-4px);
+  transition: transform 160ms ease;
+}
