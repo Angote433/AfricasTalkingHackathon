@@ -6,7 +6,7 @@ Automated Medical Receipt Fraud Detection System
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -67,8 +67,24 @@ class OtpVerifyRequest(BaseModel):
     code: str
 
 
+class LoginRequest(BaseModel):
+    phone: str
+    code: str
+
+
 class StatusUpdateRequest(BaseModel):
     status: str
+
+
+def _get_officer_phone(authorization: str | None) -> str:
+    """Validate the Authorization Bearer token and return the logged-in officer's phone."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    token = authorization.removeprefix("Bearer ").strip()
+    session = database.get_session(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Session expired or invalid. Please log in again.")
+    return session["phone"]
  
  
 @app.get("/")
@@ -102,10 +118,17 @@ async def debug_upload(request: Request):
     return {"content_type": request.headers.get("content-type"), "body_length": len(body)}
  
 @app.post("/api/analyze")
-async def analyze_receipt(file: UploadFile = File(...), phone: str = Form(None), patient_phone: str = Form(None)):
+async def analyze_receipt(
+    file: UploadFile = File(...),
+    patient_phone: str = Form(None),
+    authorization: str = Header(None),
+):
+    officer_phone = _get_officer_phone(authorization)
+
     print("=== INCOMING REQUEST ===")
     print("Filename:", file.filename)
     print("Content type:", file.content_type)
+    print("Officer:", officer_phone)
     print("========================")
     """
     Main endpoint to analyze uploaded receipt.
@@ -225,8 +248,8 @@ async def analyze_receipt(file: UploadFile = File(...), phone: str = Form(None),
 
         # Persist the claim so it can be looked up later (e.g. for status-update SMS).
         # phone_number is the PATIENT's number — that's who gets notified of the decision,
-        # not the officer who verified via OTP. Fall back to `phone` if no patient number given.
-        notify_phone = patient_phone or phone
+        # not the officer who logged in. Fall back to the officer's phone if no patient number given.
+        notify_phone = patient_phone or officer_phone
         if notify_phone:
             try:
                 database.save_claim(claim_id, notify_phone, final_report)
@@ -299,6 +322,35 @@ async def update_claim_status_endpoint(claim_id: str, payload: StatusUpdateReque
         "status": status,
         "sms_sent": bool(sms_result.get("success")),
     }
+
+
+@app.post("/api/auth/login")
+async def login(payload: LoginRequest):
+    """
+    Verify an officer's OTP and start a session (valid 8 hours).
+    Replaces per-claim OTP verification — the officer logs in once per shift.
+    """
+    success, message = database.verify_otp(payload.phone, payload.code)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    token = database.create_session(payload.phone)
+    return {"success": True, "token": token, "phone": payload.phone}
+
+
+@app.get("/api/auth/validate")
+async def validate_session(authorization: str = Header(None)):
+    """Check whether a session token is still valid."""
+    phone = _get_officer_phone(authorization)
+    return {"valid": True, "phone": phone}
+
+
+@app.post("/api/auth/logout")
+async def logout(authorization: str = Header(None)):
+    """Invalidate a session token (end of shift)."""
+    if authorization and authorization.startswith("Bearer "):
+        database.delete_session(authorization.removeprefix("Bearer ").strip())
+    return {"success": True}
 
 
 @app.post("/api/otp/send")

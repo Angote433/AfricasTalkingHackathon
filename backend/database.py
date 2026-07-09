@@ -2,6 +2,7 @@ import sqlite3
 import uuid
 import random
 import string
+import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
  
@@ -52,7 +53,17 @@ def init_db():
             created_at  TEXT DEFAULT (datetime('now'))
         )
     """)
- 
+
+    # Sessions table (officer login — one OTP verification per shift, not per claim)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token       TEXT PRIMARY KEY,
+            phone       TEXT NOT NULL,
+            created_at  TEXT DEFAULT (datetime('now')),
+            expires_at  TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
     print("✓ Database initialized at", DB_PATH)
@@ -180,3 +191,48 @@ def verify_otp(phone: str, code: str) -> tuple[bool, str]:
     conn.commit()
     conn.close()
     return True, "OTP verified successfully"
+
+
+# ── Sessions ──────────────────────────────────────────────────────────────────
+
+def create_session(phone: str, expiry_hours: int = 8) -> str:
+    """Create a session token for a phone number, valid for `expiry_hours` hours."""
+    token      = secrets.token_hex(32)
+    expires_at = (datetime.now() + timedelta(hours=expiry_hours)).isoformat()
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO sessions (token, phone, expires_at)
+        VALUES (?, ?, ?)
+    """, (token, phone, expires_at))
+    conn.commit()
+    conn.close()
+    return token
+
+
+def get_session(token: str) -> dict | None:
+    """Look up a session by token. Returns None if it doesn't exist or has expired."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM sessions WHERE token = ?", (token,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    expires_at = datetime.fromisoformat(row["expires_at"])
+    if datetime.now() > expires_at:
+        return None
+
+    return dict(row)
+
+
+def delete_session(token: str):
+    """Delete a session (logout)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()

@@ -1,6 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
+
+const TOKEN_KEY = 'mediclaim_token';
 
 function UploadPage({ onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
@@ -14,8 +16,28 @@ function UploadPage({ onUploadSuccess }) {
   const [verified, setVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
 
+  // Session — one OTP login per shift, not per claim
+  const [token, setToken] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
   // Patient phone — separate from the officer's phone used for OTP
   const [patientPhone, setPatientPhone] = useState('');
+
+  // On mount, resume an existing session if we have one
+  useEffect(() => {
+    const existingToken = localStorage.getItem(TOKEN_KEY);
+    if (!existingToken) { setCheckingSession(false); return; }
+
+    axios.get('/api/auth/validate', {
+      headers: { Authorization: `Bearer ${existingToken}` },
+    }).then(res => {
+      setToken(existingToken);
+      setPhone(res.data.phone);
+      setVerified(true);
+    }).catch(() => {
+      localStorage.removeItem(TOKEN_KEY);
+    }).finally(() => setCheckingSession(false));
+  }, []);
 
   const handleSendOtp = async () => {
     if (!phone.trim()) { setError('Enter your phone number first'); return; }
@@ -32,11 +54,29 @@ function UploadPage({ onUploadSuccess }) {
     if (!otpCode.trim()) { setError('Enter the OTP code'); return; }
     setOtpLoading(true); setError(null);
     try {
-      await axios.post('/api/otp/verify', { phone, code: otpCode });
+      const res = await axios.post('/api/auth/login', { phone, code: otpCode });
+      localStorage.setItem(TOKEN_KEY, res.data.token);
+      setToken(res.data.token);
       setVerified(true);
     } catch (err) {
       setError(err.response?.data?.detail || 'Invalid OTP');
     } finally { setOtpLoading(false); }
+  };
+
+  const handleLogout = () => {
+    const existingToken = token;
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setVerified(false);
+    setPhone('');
+    setOtpCode('');
+    setOtpSent(false);
+    setPatientPhone('');
+    if (existingToken) {
+      axios.post('/api/auth/logout', {}, {
+        headers: { Authorization: `Bearer ${existingToken}` },
+      }).catch(() => {});
+    }
   };
 
   const onDrop = useCallback(async (acceptedFiles) => {
@@ -62,11 +102,13 @@ function UploadPage({ onUploadSuccess }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      if (verified && phone) formData.append('phone', phone);           // officer phone
-      if (verified && patientPhone) formData.append('patient_phone', patientPhone); // patient phone
+      if (patientPhone) formData.append('patient_phone', patientPhone); // patient phone
 
       const response = await axios.post('/api/analyze', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (response.data.success) {
@@ -77,7 +119,7 @@ function UploadPage({ onUploadSuccess }) {
     } catch (err) {
       setError(err.response?.data?.message || 'Upload failed. Please try again.');
     } finally { setUploading(false); }
-  }, [onUploadSuccess, verified, phone, patientPhone]);
+  }, [onUploadSuccess, token, patientPhone]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -97,6 +139,19 @@ function UploadPage({ onUploadSuccess }) {
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}
+        {verified && (
+          <div className="flex justify-end items-center gap-3 mb-2">
+            <span className="text-sm text-gray-600">
+              Logged in as <span className="font-semibold">{phone}</span>
+            </span>
+            <button
+              onClick={handleLogout}
+              className="text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-100 transition"
+            >
+              Log out
+            </button>
+          </div>
+        )}
         <div className="text-center mb-10">
           <h1 className="text-5xl font-bold text-gray-800 mb-3">🏥 MediClaim AI</h1>
           <p className="text-xl text-gray-600">Automated Medical Receipt Fraud Detection</p>
@@ -106,16 +161,18 @@ function UploadPage({ onUploadSuccess }) {
         {/* Step 1 — Phone verification */}
         <div className={`card p-6 mb-4 ${verified ? 'border-2 border-green-400' : ''}`}>
           <div className="flex items-center mb-3">
-            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold mr-3 
+            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold mr-3
               ${verified ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}>
               {verified ? '✓' : '1'}
             </span>
             <h3 className="font-bold text-gray-800 text-lg">
-              {verified ? 'Phone verified ✓' : 'Verify your phone number'}
+              {checkingSession ? 'Checking session...' : verified ? 'Phone verified ✓' : 'Verify your phone number'}
             </h3>
           </div>
 
-          {!verified ? (
+          {checkingSession ? (
+            <p className="text-sm text-gray-500">Checking for an existing session...</p>
+          ) : !verified ? (
             <div className="space-y-3">
               <p className="text-sm text-gray-500">
                 We'll send an OTP to confirm your identity before processing your claim.
@@ -160,8 +217,7 @@ function UploadPage({ onUploadSuccess }) {
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-green-700">
-                Phone <span className="font-semibold">{phone || 'not provided'}</span> verified.
-                You'll receive an SMS with the analysis result.
+                Logged in as <span className="font-semibold">{phone}</span>. Session stays active for 8 hours.
               </p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
