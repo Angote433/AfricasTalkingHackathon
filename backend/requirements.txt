@@ -9,5 +9,5 @@ pytesseract==0.3.13
 pdf2image==1.17.0
 docx2pdf==0.1.8
 pdfplumber==0.10.3
-africastalking
+requests
 python-dotenv
