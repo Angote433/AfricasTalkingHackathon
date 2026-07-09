@@ -102,7 +102,7 @@ async def debug_upload(request: Request):
     return {"content_type": request.headers.get("content-type"), "body_length": len(body)}
  
 @app.post("/api/analyze")
-async def analyze_receipt(file: UploadFile = File(...), phone: str = Form(None)):
+async def analyze_receipt(file: UploadFile = File(...), phone: str = Form(None), patient_phone: str = Form(None)):
     print("=== INCOMING REQUEST ===")
     print("Filename:", file.filename)
     print("Content type:", file.content_type)
@@ -223,10 +223,13 @@ async def analyze_receipt(file: UploadFile = File(...), phone: str = Form(None))
         
         print(f"✓ Analysis complete! Fraud score: {final_report['fraud_score']}")
 
-        # Persist the claim so it can be looked up later (e.g. for status-update SMS)
-        if phone:
+        # Persist the claim so it can be looked up later (e.g. for status-update SMS).
+        # phone_number is the PATIENT's number — that's who gets notified of the decision,
+        # not the officer who verified via OTP. Fall back to `phone` if no patient number given.
+        notify_phone = patient_phone or phone
+        if notify_phone:
             try:
-                database.save_claim(claim_id, phone, final_report)
+                database.save_claim(claim_id, notify_phone, final_report)
             except Exception as db_err:
                 print(f"[DB] Failed to save claim {claim_id}: {db_err}")
         else:

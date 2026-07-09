@@ -14,6 +14,9 @@ function UploadPage({ onUploadSuccess }) {
   const [verified, setVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
 
+  // Patient phone — separate from the officer's phone used for OTP
+  const [patientPhone, setPatientPhone] = useState('');
+
   const handleSendOtp = async () => {
     if (!phone.trim()) { setError('Enter your phone number first'); return; }
     setOtpLoading(true); setError(null);
@@ -59,7 +62,8 @@ function UploadPage({ onUploadSuccess }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      if (verified && phone) formData.append('phone', phone);
+      if (verified && phone) formData.append('phone', phone);           // officer phone
+      if (verified && patientPhone) formData.append('patient_phone', patientPhone); // patient phone
 
       const response = await axios.post('/api/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -73,7 +77,7 @@ function UploadPage({ onUploadSuccess }) {
     } catch (err) {
       setError(err.response?.data?.message || 'Upload failed. Please try again.');
     } finally { setUploading(false); }
-  }, [onUploadSuccess, verified, phone]);
+  }, [onUploadSuccess, verified, phone, patientPhone]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -154,10 +158,27 @@ function UploadPage({ onUploadSuccess }) {
               )}
             </div>
           ) : (
-            <p className="text-sm text-green-700">
-              Phone <span className="font-semibold">{phone || 'not provided'}</span> verified.
-              You'll receive an SMS with the analysis result.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-green-700">
+                Phone <span className="font-semibold">{phone || 'not provided'}</span> verified.
+                You'll receive an SMS with the analysis result.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient's phone — they will receive SMS updates
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 0722000000"
+                  value={patientPhone}
+                  onChange={e => setPatientPhone(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Optional — patient phone number (for SMS notifications)
+                </p>
+              </div>
+            </div>
           )}
         </div>
 
